@@ -16,7 +16,7 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU"
   CHECK_CXX_COMPILER_FLAG("-std=c++11" HAS_CPP11_FLAG)
 
   if (HAS_CPP11_FLAG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -stdlib=libc++")
   else()
     message(FATAL_ERROR "Unsupported compiler -- ReweightedARAP requires C++11 support!")
   endif()
@@ -76,23 +76,40 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/ext/tbb ext_build/tbb)
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/ext/libigl/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/ext/tbb/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/ext/eigen
+  ${CMAKE_CURRENT_SOURCE_DIR}ext/tbb/include
+  ${CMAKE_CURRENT_SOURCE_DIR}ext/eigen
 )
 
-set(SOURCES
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/eigen_stl_utils.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/parametrization_utils.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/Param_State.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/LocalWeightedArapParametrizer.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/GlobalLocalParametrization.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/LinesearchParametrizer.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/SymmetricDirichlet.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/FastLsBuildUtils.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/StateManager.cpp
+set(INC
+  ext/libigl/include
+  ext/tbb/include
+  ext/eigen
+  ../../source/blender/editors/uvedit
+)
+
+set(INC_SYS
+
+)
+
+
+set(SRC
+  src/slim_parametrizer.cpp
+  src/slim_parametrizer.h
+
+  src/matrix_transfer.h
+
+  src/eigen_stl_utils.cpp
+  src/parametrization_utils.cpp
+  src/Param_State.cpp
+  src/LocalWeightedArapParametrizer.cpp
+  src/GlobalLocalParametrization.cpp
+  src/LinesearchParametrizer.cpp
+  src/SymmetricDirichlet.cpp
+  src/FastLsBuildUtils.cpp
+  src/StateManager.cpp
+
   ${ADDITIONAL_SOURCES}
 )
 
-add_executable(${PROJECT_NAME} ${SOURCES})
-target_link_libraries(${PROJECT_NAME} tbb_static ${ADDITIONAL_LIBRARIES})
+blender_add_lib(bf_intern_slim "${SRC}" "${INC}" "${INC_SYS}")
+target_link_libraries(bf_intern_slim tbb_static ${ADDITIONAL_LIBRARIES})

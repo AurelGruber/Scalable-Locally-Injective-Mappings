@@ -1,6 +1,9 @@
 #include <iostream>
+#include <typeinfo>
+#include <stdlib.h>
 
 #include "Param_State.h"
+#include "slim_parametrizer.h"
 #include "GlobalLocalParametrization.h"
 #include "eigen_stl_utils.h"
 #include "parametrization_utils.h"
@@ -13,19 +16,101 @@
 #include <igl/serialize.h>
 #include <igl/read_triangle_mesh.h>
 
-#include <stdlib.h>
 
 #include <string>
 #include <vector>
+
+#include <Eigen/Dense>
+
+#include "slim_parametrizer.h"
+
 
 using namespace std;
 
 void read_mesh(const std::string& mesh_file, Param_State& state);
 void check_mesh_for_issues(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::VectorXd& areas);
 
-const int ITER_NUM = 20;
+const int ITER_NUM = 3;
 
-int main(int argc, char *argv[]) {
+template<class matrix>
+void printMatrix(const matrix m){
+	cout << endl;
+	cout << endl;
+	for (int i = 0; i < m.rows(); i++) {
+		for (int j = 0; j < m.cols(); j++) {
+			cout << m(i, j) << " ";
+		}		cout << endl;
+	}
+	cout << endl;
+	cout << endl;
+};
+
+
+void param_slim(matrix_transfer *mt){
+
+	for (int chartNr = 0; chartNr < mt->nCharts; chartNr++) {
+
+		Eigen::Map<Eigen::MatrixXd> V (mt->Vmatrices[chartNr], mt->nVerts[chartNr], 3);
+		Eigen::Map<Eigen::MatrixXd> UV (mt->UVmatrices[chartNr], mt->nVerts[chartNr], 2);
+		Eigen::Map<Eigen::MatrixXi> F (mt->Fmatrices[chartNr], mt->nFaces[chartNr], 3);
+
+		Param_State state;
+
+		memset( &state, 0, sizeof( Param_State ) );
+  		state.method = Param_State::GLOBAL_ARAP_IRLS;
+  		state.flips_linesearch = true;
+  		state.update_all_energies = false;
+  		state.proximal_p = 0.0001;
+
+
+  		cout << "\tReading mesh object" << endl;
+
+		state.V = V;
+		state.F = F;
+  		state.v_num = state.V.rows();
+  		state.f_num = state.F.rows();
+
+  		// set uv coords scale
+  		igl::doublearea(state.V,state.F, state.M); state.M /= 2.;
+
+  		state.global_local_energy = Param_State::SYMMETRIC_DIRICHLET;
+  		state.cnt_flips = false;
+  		check_mesh_for_issues(state.V,state.F, state.M);
+  		cout << "\tMesh is valid!" << endl;
+
+  		state.mesh_area = state.M.sum();
+  		state.V /= sqrt(state.mesh_area);
+  		state.mesh_area = 1;
+
+
+		#ifndef USE_PARDISO
+  			cout << "Warning! Unoptimized version without Pardiso Solver. The algorithm will be significantly slower!" << endl;
+		#endif
+
+  		StateManager state_manager;
+  		GlobalLocalParametrization param(state_manager, &state);
+
+  		param.init_parametrization();
+  		cout << "initialized parametrization" << endl;
+  		for (int i = 0; i < ITER_NUM - 1; i++) {
+			cout << "iteration " << i+1 << endl;
+			param.single_iteration();
+  		}
+
+
+		double *uv;
+		uv = mt->UVmatrices[chartNr];
+		for (int i = 0; i < mt->nVerts[chartNr]; i++) {
+			for (int j = 0; j<2; j++) {
+				uv[i*2 + j] = state.uv(i,j);
+			}
+		}
+
+	}
+};
+
+/*
+int param_slim(int argc, char *argv[]) {
   if (argc < 3) {
       cerr << "Syntax: " << argv[0] << " <input mesh> <output mesh>" << std::endl;
       return -1;
@@ -54,6 +139,7 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
+*/
 
 void read_mesh(const std::string& mesh_file, Param_State& state) {
   memset( &state, 0, sizeof( Param_State ) );
@@ -109,3 +195,4 @@ void check_mesh_for_issues(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::Vector
     }
   }
 }
+
